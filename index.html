@@ -33,6 +33,11 @@ body { margin:0; padding:0; }
     text-align: center;
 }
 
+#message {
+  font-weight: bold;
+  color: #FF0000;
+}
+
 #menu2 table {
  padding: 0.5% 2.5% ;
  width: 100%;
@@ -41,6 +46,7 @@ body { margin:0; padding:0; }
 
 
 #menu{
+  background: #FFFFFF;
   position: absolute;
   width: 100%;
   height: auto;
@@ -73,6 +79,10 @@ body { margin:0; padding:0; }
 <div id='menu'>
   <form name="question" id="question">
     <span>透過度：</span><input type="range" id="slider_01" name="slider_01" min="0" max="100" value="80" onChange="refleshAll();">
+    <br>
+    <span id="message"></span>
+    <br>
+    <span id="bbox"></span>
   </form>
 </div>
 
@@ -117,7 +127,7 @@ if(window.location.search){
 }
 
 
-var map = new mapboxgl.Map({
+const map = new mapboxgl.Map({
   container: 'map', // container id
   hash: true,
   style: './style.json', // stylesheet location
@@ -126,13 +136,15 @@ var map = new mapboxgl.Map({
   zoom: 5, // starting zoom
   minZoom: 0,
   maxZoom: 15,
+  doubleClickZoom: false,
   localIdeographFontFamily: ['MS Gothic', 'Hiragino Kaku Gothic Pro', 'sans-serif']
 });
 
 
-map.addControl(new mapboxgl.NavigationControl(), 'top-left');
+map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
 map.showTileBoundaries = false;
+
 
 map.on('load', () => {
 
@@ -192,6 +204,10 @@ map.on('load', () => {
           }, "background-insert1");
           
           document.getElementById("menutop").style.display = "none";
+          
+          
+          //追加
+          addBboxCornerPointLayer(box);
       
         });
         
@@ -203,7 +219,182 @@ map.on('load', () => {
 
 const refleshAll = () => {
   map.setPaintProperty('image', 'raster-opacity', +document.question["slider_01"].value/100);
+};
+
+
+const addBboxCornerPointLayer = (box) => {
+  ["lt", "rt", "rb", "lb"].forEach( cor => {
+      
+      const id = cor;
+      map.addSource(id, {
+        "type": "geojson",
+        "data": {
+           "type": "Feature",
+           "properties": {
+             "name": cor
+           },
+           "geometry": {
+             "type": "Point",
+             "coordinates": box[cor]
+           }
+        }
+      });
+      
+      map.addLayer({
+        'id': id,
+        'type': 'circle',
+        'source': id,
+        'minzoom': 0,
+        'maxzoom': 22,
+        'layout': {
+          'visibility': 'visible'
+        },
+        'paint': {
+          'circle-color': ['rgba', 255,0,0,1],
+          'circle-radius': 7,
+          'circle-stroke-color': ['rgba', 255,255,255,1],
+          'circle-stroke-width': 2
+        }
+      });
+  });
 }
+
+
+const georefInfo = {};
+map.on('dblclick', e => {
+  
+  targets = ["lt", "rt", "rb", "lb"];
+  
+  const features = map.queryRenderedFeatures(e.point, {layers: targets});
+  
+  if(!features.length){
+    delete georefInfo.orgId;
+    document.getElementById("message").innerText = ``;
+    return; 
+  }
+  
+  const f = features[0];
+  georefInfo.orgId = f.source;
+  
+  console.log(`${georefInfo.orgId}を選択`);
+  
+  const cornerName = {"lt": "左上", "rt": "右上", "rb": "右下", "lb": "左下"};
+  document.getElementById("message").innerText = `${cornerName[georefInfo.orgId]}を選択中`;
+  
+
+});
+
+
+map.on('click', e => {
+    
+    if(!georefInfo.orgId){
+      console.log(`${georefInfo.orgId}がありません。`);
+      return;
+    }
+    
+    //もしオリジナルデータを選択していたらキャンセル
+    targets = ["lt", "rt", "rb", "lb"];
+    const features = map.queryRenderedFeatures(e.point, {layers: targets});
+    if(features.length) return; 
+    
+
+    console.log(`${georefInfo.orgId}を移動`);
+    
+    console.log(e);
+    
+    const id = "new-" + georefInfo.orgId;
+    const newCorCoords = [e.lngLat.lng, e.lngLat.lat];
+    
+    if(map.getLayer(id)){
+      map.removeLayer(id);
+      if(map.getSource(id)){ map.removeSource(id); }
+    }
+    
+    
+    map.addSource(id, {
+      "type": "geojson",
+      "data": {
+         "type": "Feature",
+         "properties": {
+           "name": georefInfo.orgId
+         },
+         "geometry": {
+           "type": "Point",
+           "coordinates": newCorCoords
+         }
+      }
+    });
+    
+    map.addLayer({
+      'id': id,
+      'type': 'circle',
+      'source': id,
+      'minzoom': 0,
+      'maxzoom': 22,
+      'layout': {
+        'visibility': 'visible'
+      },
+      'paint': {
+        'circle-color': ['rgba', 0,0,255,1],
+        'circle-radius': 7,
+        'circle-stroke-color': ['rgba', 255,255,255,1],
+        'circle-stroke-width': 2
+      }
+    });
+    
+    
+    const newInfo = map.getSource("image");
+    const orgBbox = newInfo.coordinates;
+    
+    if(georefInfo.orgId == "lt"){
+      newInfo.coordinates = [newCorCoords, orgBbox[1], orgBbox[2], orgBbox[3]];
+    }else if(georefInfo.orgId == "rt"){
+      newInfo.coordinates = [orgBbox[0], newCorCoords, orgBbox[2], orgBbox[3]];
+    }else if(georefInfo.orgId == "rb"){
+      newInfo.coordinates = [orgBbox[0], orgBbox[1], newCorCoords, orgBbox[3]];
+    }else if(georefInfo.orgId == "lb"){
+      newInfo.coordinates = [orgBbox[0], orgBbox[1], orgBbox[2], newCorCoords];
+    }
+    
+    //画像の再描画
+    if(map.getLayer("image")){
+      map.removeLayer("image");
+      if(map.getSource("image")){ map.removeSource("image"); }
+    }
+    
+    map.addSource("image", {
+      "type": "image",
+      "url": newInfo.url,
+      "coordinates": newInfo.coordinates
+    });
+     
+    map.addLayer({
+      "id": "image",
+      "type": "raster",
+      "source": "image",
+      "paint":{
+        "raster-opacity": +document.question["slider_01"].value/100
+      }
+    }, "background-insert1");
+    
+    
+    document.getElementById("bbox").innerText = `${JSON.stringify(newInfo.coordinates)}`;
+    
+    
+    
+});
+
+
+//解除方法
+map.on('mouseleave', () => {
+  delete georefInfo.orgId;
+  document.getElementById("message").innerText = ``;
+});
+
+
+
+
+
 </script>
 
 
