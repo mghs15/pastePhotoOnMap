@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='utf-8' />
+<title>pp</title>
+<meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+<style>
+body { margin:0; padding:0; }
+#map {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+}
+
+#menutop{
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 1000000;
+  display:;
+}
+
+#menu2 {
+    position: relative;
+    padding: 0.5% 2.5% ;
+    margin: 0 0;
+    box-shadow: 0px 0px 0px 0px #eeeeee;
+    font-family: 'Open Sans', sans-serif;
+    width:100%;
+    height: 100%;
+    //max-width: 350px;
+    text-align: center;
+}
+
+#menu2 table {
+ padding: 0.5% 2.5% ;
+ width: 100%;
+ height: 100%;
+}
+
+
+#menu{
+  position: absolute;
+  width: 100%;
+  height: auto;
+  z-index: 1000000;
+  text-align: center;
+}
+
+
+</style>
+</head>
+<body>
+
+<div id='menutop'>
+  <div id='menu2'>
+    <table>
+      <tr>
+        <td>
+        <span id="loadingMessage">
+          <img src='https://gsi-cyberjapan.github.io/gsimaps/image/system/loading002.gif'>
+          <br>
+          ロード中...<br>少々お待ちください。
+        </span>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+<div id='map'></div>
+
+<div id='menu'>
+  <form name="question" id="question">
+    <span>透過度：</span><input type="range" id="slider_01" name="slider_01" min="0" max="100" value="80" onChange="refleshAll();">
+  </form>
+</div>
+
+<script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.13.1/mapbox-gl.js'></script>
+<link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.13.1/mapbox-gl.css' rel='stylesheet' />
+
+<script>
+/*
+const loadWaitingHtml = "<table>"
+    
+    + "<tr>"
+    + "  <td><img src='https://gsi-cyberjapan.github.io/gsimaps/image/map/layer_std.png'></td>"
+    + "  <td>標準地図</td>"
+    + "</tr>"
+    + "<tr>"
+    + "  <td colspan='2'>基本となる地図。</td>"
+    + "</tr>"
+    
+    + "<tr>"
+    + "  <td>★</td>"
+    + "  <td>ロード中。少々お待ちください。</td>"
+    + "</tr>"
+    + "<tr></tr>"
+  + "</table>";
+document.getElementById("menu").innerHTML = loadWaitingHtml;
+*/
+
+
+/*************************************************/
+/*Mapbox 画像表示用 関係設定                     */
+/*************************************************/
+
+let specificationID = "";
+if(window.location.search){
+  const query = window.location.search;
+  const qs = query.split('&');
+  qs.forEach( q => {
+    if(q.match("specificationId=")){
+      specificationID = q.split('=')[1];
+    }
+  });
+}
+
+
+var map = new mapboxgl.Map({
+  container: 'map', // container id
+  hash: true,
+  style: './style.json', // stylesheet location
+  center: [135,35], // starting position [lng, lat]
+//  maxBounds: [-10, -10, 10, 10],
+  zoom: 5, // starting zoom
+  minZoom: 0,
+  maxZoom: 15,
+  localIdeographFontFamily: ['MS Gothic', 'Hiragino Kaku Gothic Pro', 'sans-serif']
+});
+
+
+map.addControl(new mapboxgl.NavigationControl(), 'top-left');
+
+map.showTileBoundaries = false;
+
+map.on('load', () => {
+
+  //sample: 349278
+  const imageUrl = "./image/1.jpg?spedificationId=" + specificationID;
+  
+  map.loadImage( imageUrl, (error, image) => {
+  
+      if (error){
+        document.getElementById("loadingMessage").innerText = "画像が取得できませんでした";
+        console.log(error); 
+        throw error;
+      }
+      
+      /*
+      console.log(image);
+      const w = image.width/100;
+      const h = image.height/100;
+      */
+      
+      fetch('./image/1.json')
+        .then( response => response.json())
+        .then( data => {
+          
+          const res = data.resultJsondata;
+          const box = {};
+          res.forEach( f => {
+            if(!f.contentsTitlePath.match("349278")) return;
+            
+            console.log(f);
+            
+            box.lb = [+f.imageLeftBottomLon, +f.imageLeftBottomLat];
+            box.lt = [+f.imageLeftTopLon, +f.imageLeftTopLat];
+            box.rt = [+f.imageRightTopLon, +f.imageRightTopLat];
+            box.rb = [+f.imageRightBottomLon, +f.imageRightBottomLat];
+          });
+          
+          
+          map.addSource("image", {
+            "type": "image",
+            "url": imageUrl,
+            "coordinates": [
+              box.lt,
+              box.rt,
+              box.rb,
+              box.lb
+            ]
+          });
+           
+          map.addLayer({
+            "id": "image",
+            "type": "raster",
+            "source": "image",
+            "paint":{
+              "raster-opacity": 0.8
+            }
+          }, "background-insert1");
+          
+          document.getElementById("menutop").style.display = "none";
+      
+        });
+        
+    }
+  );
+  
+});
+
+
+const refleshAll = () => {
+  map.setPaintProperty('image', 'raster-opacity', +document.question["slider_01"].value/100);
+}
+</script>
+
+
+</body>
+</html>
