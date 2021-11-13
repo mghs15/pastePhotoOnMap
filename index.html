@@ -86,8 +86,8 @@ body { margin:0; padding:0; }
   </form>
 </div>
 
-<script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.13.1/mapbox-gl.js'></script>
-<link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.13.1/mapbox-gl.css' rel='stylesheet' />
+<script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.13.2/mapbox-gl.js'></script>
+<link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.13.2/mapbox-gl.css' rel='stylesheet' />
 
 <script>
 /*
@@ -126,6 +126,7 @@ if(window.location.search){
   });
 }
 
+if(!specificationID) specificationID = 349278; //サンプルデータ
 
 const map = new mapboxgl.Map({
   container: 'map', // container id
@@ -172,7 +173,7 @@ map.on('load', () => {
           const res = data.resultJsondata;
           const box = {};
           res.forEach( f => {
-            if(!f.contentsTitlePath.match("349278")) return;
+            if(!f.contentsTitlePath.match( specificationID )) return;
             
             console.log(f);
             
@@ -222,6 +223,7 @@ const refleshAll = () => {
 };
 
 
+//オリジナルの四隅データを表示
 const addBboxCornerPointLayer = (box) => {
   ["lt", "rt", "rb", "lb"].forEach( cor => {
       
@@ -260,10 +262,14 @@ const addBboxCornerPointLayer = (box) => {
 }
 
 
+//ジオリファレンス用グローバル変数
 const georefInfo = {};
+georefInfo.targetlayers = ["lt", "rt", "rb", "lb"];
+
+//ダブルクリック時の挙動（選択・選択解除）
 map.on('dblclick', e => {
   
-  targets = ["lt", "rt", "rb", "lb"];
+  const targets = georefInfo.targetlayers;
   
   const features = map.queryRenderedFeatures(e.point, {layers: targets});
   
@@ -273,8 +279,10 @@ map.on('dblclick', e => {
     return; 
   }
   
+  //新点をクリックしても選択対象を変更できるようにする。
   const f = features[0];
-  georefInfo.orgId = f.source;
+  const fsrc = f.source;
+  georefInfo.orgId = fsrc.match(/new-/) ? fsrc.split("-")[1] : fsrc;
   
   console.log(`${georefInfo.orgId}を選択`);
   
@@ -284,7 +292,7 @@ map.on('dblclick', e => {
 
 });
 
-
+//クリック時の挙動（新点決定）
 map.on('click', e => {
     
     if(!georefInfo.orgId){
@@ -292,14 +300,13 @@ map.on('click', e => {
       return;
     }
     
-    //もしオリジナルデータを選択していたらキャンセル
-    targets = ["lt", "rt", "rb", "lb"];
+    //もしオリジナルデータ・新点を選択していたらキャンセル
+    targets = georefInfo.targetlayers;
     const features = map.queryRenderedFeatures(e.point, {layers: targets});
     if(features.length) return; 
     
-
+    //移動先を指定
     console.log(`${georefInfo.orgId}を移動`);
-    
     console.log(e);
     
     const id = "new-" + georefInfo.orgId;
@@ -308,9 +315,12 @@ map.on('click', e => {
     if(map.getLayer(id)){
       map.removeLayer(id);
       if(map.getSource(id)){ map.removeSource(id); }
+    }else{
+      //新規の場合は、グローバル変数に追加
+      georefInfo.targetlayers.push(id);
     }
     
-    
+    //新点の位置表示
     map.addSource(id, {
       "type": "geojson",
       "data": {
@@ -343,6 +353,7 @@ map.on('click', e => {
     });
     
     
+    //画像の新規描画領域の設定
     const newInfo = map.getSource("image");
     const orgBbox = newInfo.coordinates;
     
@@ -380,8 +391,6 @@ map.on('click', e => {
     
     document.getElementById("bbox").innerText = `${JSON.stringify(newInfo.coordinates)}`;
     
-    
-    
 });
 
 
@@ -390,10 +399,6 @@ map.on('mouseleave', () => {
   delete georefInfo.orgId;
   document.getElementById("message").innerText = ``;
 });
-
-
-
-
 
 </script>
 
