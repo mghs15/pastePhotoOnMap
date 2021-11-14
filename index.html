@@ -115,7 +115,10 @@ document.getElementById("menu").innerHTML = loadWaitingHtml;
 /*Mapbox 画像表示用 関係設定                     */
 /*************************************************/
 
-let specificationID = "";
+let specificationID = 349278;//サンプルデータ
+
+let dataTypeId = 4;
+
 if(window.location.search){
   const query = window.location.search;
   const qs = query.split('&');
@@ -123,10 +126,11 @@ if(window.location.search){
     if(q.match("specificationId=")){
       specificationID = q.split('=')[1];
     }
+    if(q.match("dataTypeId=")){
+      dataTypeId = q.split('=')[1];
+    }
   });
 }
-
-if(!specificationID) specificationID = 349278; //サンプルデータ
 
 const map = new mapboxgl.Map({
   container: 'map', // container id
@@ -151,6 +155,7 @@ map.on('load', () => {
 
   //sample: 349278
   const imageUrl = "./image/1.jpg?spedificationId=" + specificationID;
+  const infoUrl = "./image/1.json";
   
   map.loadImage( imageUrl, (error, image) => {
   
@@ -166,7 +171,13 @@ map.on('load', () => {
       const h = image.height/100;
       */
       
-      fetch('./image/1.json')
+      fetch( infoUrl, { 
+        method: "GET"
+        /*
+        method: "POST",
+        body: `hogehoge=${specificationID}`
+        */
+      })
         .then( response => response.json())
         .then( data => {
           
